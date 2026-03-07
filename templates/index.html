@@ -39,7 +39,7 @@
                                 <i class="fas fa-cloud-upload-alt drop-zone-icon"></i>
                                 <p class="drop-zone-text">Click or drag image here</p>
                                 <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 10px;">JPG, PNG, GIF,
-                                    BMP or AVIF</p>
+                                    BMP, AVIF or WEBP</p>
                             </div>
                         </div>
                         <button type="submit" class="btn-upload" id="submit-btn" style="margin-top: 20px;">
@@ -140,7 +140,7 @@
                 const data = await response.json();
 
                 if (data.error) {
-                    alert("⚠️ " + data.error + "\n\nPlease select a valid JPG, PNG, GIF, BMP, or AVIF image.");
+                    alert("⚠️ " + data.error + "\n\nPlease select a valid JPG, PNG, GIF, BMP, AVIF, or WEBP image.");
                     resetUI(); // Go back to the upload screen immediately
                 } else {
                     displayResult(data);

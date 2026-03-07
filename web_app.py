@@ -16,7 +16,7 @@ JSON_PATH = os.path.join(BASE_DIR, 'training_features.json')
 
 app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'avif'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'avif', 'webp'}
 K_NEIGHBORS = 5
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
