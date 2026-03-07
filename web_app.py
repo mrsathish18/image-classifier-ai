@@ -5,6 +5,7 @@ from werkzeug.utils import secure_filename
 from feature_extractor import extract_features
 from knn_classifier import KNNClassifier
 from dataset_loader import load_dataset_features
+import pillow_avif
 
 # Use absolute paths for stability on deployment servers
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -15,7 +16,7 @@ JSON_PATH = os.path.join(BASE_DIR, 'training_features.json')
 
 app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'avif'}
 K_NEIGHBORS = 5
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER

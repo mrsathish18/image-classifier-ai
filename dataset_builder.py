@@ -19,7 +19,7 @@ def build_dataset():
     for cat in categories:
         dataset[cat] = []
         cat_dir = os.path.join(TRAINING_DIR, cat)
-        files = [f for f in os.listdir(cat_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))]
+        files = [f for f in os.listdir(cat_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.avif'))]
         
         for file in files:
             filepath = os.path.join(cat_dir, file)
