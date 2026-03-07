@@ -30,8 +30,11 @@ def extract_features(image_path):
     gray_pixels = grayscale(pixels)
     blurred_gray = apply_gaussian_blur(gray_pixels, width, height)
     
-    # 1. Advanced Color Histogram | 5x5x5 grouping = 125 features
-    hist_125 = _advanced_color_histogram(pixels)
+    # 1. NEW: Center-Weighted Color Histogram (Global vs Local)
+    # This specifically helps fix "Background Bias" (like green grass)
+    hist_global = _advanced_color_histogram(pixels)
+    hist_center = _center_weighted_histogram(pixels, width, height)
+    
     # 2. Local Binary Patterns (Texture) | 64 features
     lbp_64 = _lbp_texture(blurred_gray, width, height)
     # 3. Zone Edge Density | 4x4 Grid = 16 features
@@ -43,8 +46,8 @@ def extract_features(image_path):
     # 6. Aspect Ratio | 1 feature
     aspect_1 = [width / height if height > 0 else 1.0]
 
-    # Combine all logic (125 + 64 + 16 + 72 + 3 + 1 = 281 features)
-    features = hist_125 + lbp_64 + zone_edge_16 + grad_72 + stats_3 + aspect_1
+    # Combine all (125 + 125 + 64 + 16 + 72 + 3 + 1 = 406 features)
+    features = hist_global + hist_center + lbp_64 + zone_edge_16 + grad_72 + stats_3 + aspect_1
     return normalize_features(features)
 
 def _advanced_color_histogram(pixels):
@@ -53,6 +56,24 @@ def _advanced_color_histogram(pixels):
         bins[min(r // 52, 4) * 25 + min(g // 52, 4) * 5 + min(b // 52, 4)] += 1
     total = len(pixels)
     return [b/total for b in bins]
+
+def _center_weighted_histogram(pixels, w, h):
+    """
+    Focuses HEAVILY on the middle 50% of the image.
+    If there is grass in the background (edges), this ignores it.
+    """
+    bins = [0] * 125
+    cx_start, cx_end = w // 4, 3 * (w // 4)
+    cy_start, cy_end = h // 4, 3 * (h // 4)
+    
+    count = 0
+    for y in range(cy_start, cy_end):
+        for x in range(cx_start, cx_end):
+            r, g, b = pixels[y * w + x]
+            bins[min(r // 52, 4) * 25 + min(g // 52, 4) * 5 + min(b // 52, 4)] += 1
+            count += 1
+            
+    return [b/count if count > 0 else 0 for b in bins]
 
 def _lbp_texture(gray, w, h):
     bins = [0] * 64

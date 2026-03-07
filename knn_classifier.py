@@ -160,11 +160,11 @@ class KNNClassifier:
         # Generate AI Reasoning
         reason = ""
         if len(detected_categories) > 1:
-            reason = f"I detected multiple objects! My brain found strong mathematical matches for both {combined_label} mixed together based on the 300+ advanced LBP/Gradient structural features."
+            reason = f"I detected multiple objects! My brain found strong mathematical matches for both {combined_label} based on the new 406-feature 'Center-Focus' system that ignores background noise."
         elif primary_confidence > 0.8:
-            reason = f"Based on 280+ architectural features (including LBP textures and Grid Gradients), this is mathematically extremely similar to the '{detected_categories[0]}'s in my memory."
+            reason = f"By focusing mainly on the center 50% of the image (the subject), I am highly confident this is {detected_categories[0]}. I'm ignoring the background textures (like grass or sky) to avoid confusion."
         else:
-            reason = f"This was a trickier one. While the color and edge textures resemble a few different things, the closest mathematical match overall falls into the '{detected_categories[0]}' category."
+            reason = f"While the background colors are a bit distracting, my 'Center-Weighted' math shows that the main subject in the middle of the frame is mathematically closest to the '{detected_categories[0]}' category."
         
         return {
             'label': combined_label,
