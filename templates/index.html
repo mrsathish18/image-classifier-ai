@@ -1,15 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Image Classifier — Pure Python</title>
+    <!-- Dynamic SVG Favicon (Brain Icon) -->
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Outfit:wght@700;800&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Outfit:wght@700;800&display=swap"
+        rel="stylesheet">
 </head>
+
 <body>
     <div class="container">
         <div class="main-card">
@@ -32,7 +39,8 @@
                             <div class="drop-zone-info" id="drop-zone-content">
                                 <i class="fas fa-cloud-upload-alt drop-zone-icon"></i>
                                 <p class="drop-zone-text">Click or drag image here</p>
-                                <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 10px;">JPG, PNG, GIF or BMP</p>
+                                <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 10px;">JPG, PNG, GIF
+                                    or BMP</p>
                             </div>
                         </div>
                         <button type="submit" class="btn-upload" id="submit-btn" style="margin-top: 20px;">
@@ -49,19 +57,27 @@
                 <!-- Right Column: Results -->
                 <div class="result-section" id="result-pane">
                     <div class="placeholder-text" id="placeholder">
-                        <i class="fas fa-microchip" style="font-size: 3rem; margin-bottom: 20px; color: var(--border-color);"></i>
+                        <i class="fas fa-microchip"
+                            style="font-size: 3rem; margin-bottom: 20px; color: var(--border-color);"></i>
                         <h3>Ready for Detection</h3>
                         <p>Upload an image to see the AI analysis result here.</p>
                     </div>
 
                     <div class="result-container" id="result-data">
-                        <p style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; letter-spacing: 0.1em;">Detection Result:</p>
+                        <p
+                            style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; letter-spacing: 0.1em;">
+                            Detection Result:</p>
                         <h2 class="result-label" id="identified-label">CAR</h2>
                         <div class="confidence-chip" id="identified-confidence">95% Confident</div>
-                        
-                        <div id="ai-reason-box" style="background: var(--input-bg); padding: 15px; border-radius: 12px; margin-top: 20px; text-align: left; border-left: 4px solid var(--accent);">
-                            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 5px; font-weight: 600;"><i class="fas fa-brain"></i> AI Reasoning:</p>
-                            <p id="identified-reason" style="font-size: 0.95rem; line-height: 1.5; color: var(--text-primary); margin-top: 8px;"></p>
+
+                        <div id="ai-reason-box"
+                            style="background: var(--input-bg); padding: 15px; border-radius: 12px; margin-top: 20px; text-align: left; border-left: 4px solid var(--accent);">
+                            <p
+                                style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 5px; font-weight: 600;">
+                                <i class="fas fa-brain"></i> AI Reasoning:</p>
+                            <p id="identified-reason"
+                                style="font-size: 0.95rem; line-height: 1.5; color: var(--text-primary); margin-top: 8px;">
+                            </p>
                         </div>
 
                         <button class="btn-secondary" onclick="resetUI()" style="margin-top: 30px; width: 100%;">
@@ -71,7 +87,7 @@
                 </div>
             </div>
         </div>
-        
+
         <footer style="margin-top: 20px; text-align: center; font-size: 0.8rem; color: var(--text-dim);">
             Powered by Pure Python & KNN Logic • No third-party ML frameworks
         </footer>
@@ -120,9 +136,9 @@
                     method: 'POST',
                     body: formData
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.error) {
                     alert(data.error);
                 } else {
@@ -140,7 +156,7 @@
         function displayResult(data) {
             document.getElementById('identified-label').innerText = data.label.toUpperCase();
             document.getElementById('identified-confidence').innerText = data.confidence + "% Confident";
-            
+
             // Set AI Reasoning
             const reasonBox = document.getElementById('identified-reason');
             if (data.reason) {
@@ -159,11 +175,11 @@
             preview.src = '';
             preview.style.display = 'none';
             dropContent.style.display = 'flex';
-            
+
             // Show placeholder, hide results
             placeholder.style.display = 'block';
             resultData.style.display = 'none';
-            
+
             // Scroll to top on mobile
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -183,4 +199,5 @@
         });
     </script>
 </body>
+
 </html>
