@@ -54,6 +54,10 @@ def index():
     categories = classifier.get_categories()
     return render_template('index.html', categories=categories, count=classifier.get_training_count())
 
+@app.route('/favicon.ico')
+def favicon():
+    return app.send_static_file('favicon.ico')
+
 @app.route('/classify', methods=['POST'])
 def classify_image():
     if 'file' not in request.files:
