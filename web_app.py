@@ -4,14 +4,14 @@ from flask import Flask, render_template, request, jsonify, url_for
 from werkzeug.utils import secure_filename
 from feature_extractor import extract_features
 from knn_classifier import KNNClassifier
-from training_loader import load_training_data
+from dataset_loader import load_dataset_features
 
 # Use absolute paths for stability on deployment servers
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 UPLOAD_FOLDER = os.path.join(STATIC_DIR, 'uploads')
-TRAINING_DIR = os.path.join(BASE_DIR, 'training_data')
+JSON_PATH = os.path.join(BASE_DIR, 'training_features.json')
 
 app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
 
@@ -20,7 +20,6 @@ K_NEIGHBORS = 5
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(TRAINING_DIR, exist_ok=True)
 
 # Debug: Print directory structure
 print(f"--- DEBUG: Files in {BASE_DIR} ---")
@@ -42,9 +41,9 @@ print("---------------------------------")
 
 # Initialize Classifier and load data once at startup
 classifier = KNNClassifier(k=K_NEIGHBORS)
-print("Loading training data for web app...")
-load_training_data(TRAINING_DIR, classifier)
-print(f"Loaded {classifier.get_training_count()} images.")
+print("Loading instant JSON dataset for web app...")
+count = load_dataset_features(JSON_PATH, classifier)
+print(f"Loaded {count} highly-compressed feature vectors.")
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS

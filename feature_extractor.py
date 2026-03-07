@@ -13,263 +13,90 @@ WHY WE NEED THIS:
 NO THIRD-PARTY ML LIBRARIES — only Pillow for reading the image file.
 """
 
-from PIL import Image  # ONLY used to read image files — NOT for detection
+from PIL import Image
 import math
-
+from preprocessing import apply_gaussian_blur, grayscale, normalize_features
 
 def extract_features(image_path):
-    """
-    Takes an image file path → Returns a list of numbers (features).
-    
-    Example:
-        features = extract_features("car.jpg")
-        # features = [0.12, 0.05, 0.34, ...] (69 numbers)
-    """
-    # Step 1: Open the image and resize to 64x64
-    # WHY RESIZE? So all images are the same size for fair comparison
     with Image.open(image_path) as img:
-        # Use thumbnail first to drastically reduce memory usage for large 4K images
         img.thumbnail((256, 256)) 
         image = img.convert("RGB")  
         image = image.resize((64, 64))
-    
-    # Step 2: Get all pixels as a list of RGB tuples
-    # We must ensure every pixel is a tuple (not a list) to avoid "unhashable" errors
-    # We also handle grayscale (p is int) and RGBA (p is 4-tuple)
-    pixels = []
-    for p in image.getdata():
-        if isinstance(p, (list, tuple)):
-            # If it's a list/tuple, take first 3 values (R, G, B) and ensure they are ints
-            pixels.append((int(p[0]), int(p[1]), int(p[2])))
-        elif isinstance(p, int):
-            # If it's an integer (grayscale), convert to RGB tuple
-            pixels.append((p, p, p))
-        else:
-            # Fallback for any other type, try to convert to list then tuple
-            try:
-                p_list = list(p)
-                pixels.append((int(p_list[0]), int(p_list[1]), int(p_list[2])))
-            except:
-                pixels.append((0, 0, 0)) # Last resort: black pixel
-    
+        
+    pixels = list(image.getdata())
     width, height = image.size
     
-    # Step 3: Extract different types of features
-    color_hist = _color_histogram(pixels)        # 64 numbers (0.0 to 1.0)
-    edge_density = _edge_density(pixels, width, height)  # 1 number (0.0 to 1.0)
-    zone_edges = _zone_edge_density(pixels, width, height) # 9 numbers (0.0 to 1.0)
-    dominant_color = _dominant_color(pixels)      # 3 numbers (0.0 to 1.0)
-    aspect_ratio = _aspect_ratio(image_path)      # 1 number (usually 0.5 to 2.0)
+    # Preprocessing
+    gray_pixels = grayscale(pixels)
+    blurred_gray = apply_gaussian_blur(gray_pixels, width, height)
     
-    # Step 4: Apply Weights!
-    # We heavily weight Zone Edges so the AI cares about SHAPE STRUCTURE 
-    # (e.g. wheels vs windows) and not just color!
-    
-    # Weight zone edges heavily (x 2.5) to capture structural layout
-    weighted_zone_edges = [z * 2.5 for z in zone_edges]
-    
-    # Weight color heavily (x 2.0)
-    weighted_color_hist = [c * 2.0 for c in color_hist]
-    
-    # Weight dominant color very heavily (x 3.0) because cars/flowers are color-coded
-    weighted_dominant = [d * 3.0 for d in dominant_color]
-    
-    # Weight overall edges moderately (x 1.0) 
-    weighted_edge = [edge_density * 1.0]
-    
-    # Keep aspect ratio weak (x 0.5) 
-    weighted_aspect = [aspect_ratio * 0.5]
-    
-    # Step 5: Combine all weighted features into one list
-    features = weighted_color_hist + weighted_zone_edges + weighted_edge + weighted_dominant + weighted_aspect
-    
-    return features
+    # 1. Advanced Color Histogram | 5x5x5 grouping = 125 features
+    hist_125 = _advanced_color_histogram(pixels)
+    # 2. Local Binary Patterns (Texture) | 64 features
+    lbp_64 = _lbp_texture(blurred_gray, width, height)
+    # 3. Zone Edge Density | 4x4 Grid = 16 features
+    zone_edge_16 = _zone_edge_density(blurred_gray, width, height, grid=4)
+    # 4. Gradient Orientations | 3x3 Grid x 8 angles = 72 features
+    grad_72 = _gradient_orientation(blurred_gray, width, height, grid=3)
+    # 5. Global Texture Contrast/Variance | 3 features
+    stats_3 = _texture_stats(blurred_gray)
+    # 6. Aspect Ratio | 1 feature
+    aspect_1 = [width / height if height > 0 else 1.0]
 
+    # Combine all logic (125 + 64 + 16 + 72 + 3 + 1 = 281 features)
+    features = hist_125 + lbp_64 + zone_edge_16 + grad_72 + stats_3 + aspect_1
+    return normalize_features(features)
 
-def _color_histogram(pixels):
-    """
-    Creates a COLOR HISTOGRAM — counts how many pixels have each color.
-    
-    Think of it like sorting M&Ms by color and counting each pile.
-    
-    We divide each color channel (R, G, B) into 4 groups (called "bins"):
-        Bin 0: values 0-63    (very dark)
-        Bin 1: values 64-127  (dark)
-        Bin 2: values 128-191 (light)
-        Bin 3: values 192-255 (very light)
-    
-    4 bins × 4 bins × 4 bins = 64 total bins
-    """
-    # Create 64 bins, all starting at 0
-    histogram = [0] * 64
-    
+def _advanced_color_histogram(pixels):
+    bins = [0] * 125
     for r, g, b in pixels:
-        # Divide each color by 64 to get which bin (0, 1, 2, or 3)
-        r_bin = min(r // 64, 3)  # min() to handle edge case of value 256
-        g_bin = min(g // 64, 3)
-        b_bin = min(b // 64, 3)
-        
-        # Convert 3D bin position to 1D index
-        # Example: r_bin=2, g_bin=1, b_bin=3 → index = 2*16 + 1*4 + 3 = 39
-        index = r_bin * 16 + g_bin * 4 + b_bin
-        histogram[index] += 1
-    
-    # Normalize: divide each count by total pixels
-    # WHY? So the histogram works the same for any image size
+        bins[min(r // 52, 4) * 25 + min(g // 52, 4) * 5 + min(b // 52, 4)] += 1
     total = len(pixels)
-    histogram = [count / total for count in histogram]
-    
-    return histogram  # Returns 64 numbers, each between 0.0 and 1.0
+    return [b/total for b in bins]
 
+def _lbp_texture(gray, w, h):
+    bins = [0] * 64
+    for y in range(1, h - 1):
+        for x in range(1, w - 1):
+            center = gray[y * w + x]
+            code = 0
+            if gray[(y-1)*w + (x-1)] > center: code |= 128
+            if gray[(y-1)*w + x] > center: code |= 64
+            if gray[(y-1)*w + (x+1)] > center: code |= 32
+            if gray[y*w + (x+1)] > center: code |= 16
+            if gray[(y+1)*w + (x+1)] > center: code |= 8
+            if gray[(y+1)*w + x] > center: code |= 4
+            if gray[(y+1)*w + (x-1)] > center: code |= 2
+            if gray[y*w + (x-1)] > center: code |= 1
+            bins[code // 4] += 1
+    return [b/sum(bins) if sum(bins) > 1 else 0 for b in bins]
 
-def _edge_density(pixels, width, height):
-    """
-    Calculates EDGE DENSITY — how many edges (boundaries) are in the image.
-    
-    Uses the SOBEL FILTER (a real computer vision algorithm).
-    
-    An "edge" is where the color changes sharply — like the boundary
-    between a car and the road behind it.
-    
-    A landscape photo has FEW edges (smooth sky, smooth water).
-    A car photo has MANY edges (sharp lines, wheels, windows).
-    """
-    # First convert to grayscale (single number per pixel instead of RGB)
-    gray = []
-    for r, g, b in pixels:
-        # Standard grayscale formula (matches how human eyes work)
-        gray_value = int(0.299 * r + 0.587 * g + 0.114 * b)
-        gray.append(gray_value)
-    
-    # Sobel kernels — these are "templates" that detect edges
-    # Horizontal edges detector
-    sobel_x = [
-        [-1, 0, 1],
-        [-2, 0, 2],
-        [-1, 0, 1]
-    ]
-    # Vertical edges detector
-    sobel_y = [
-        [-1, -2, -1],
-        [ 0,  0,  0],
-        [ 1,  2,  1]
-    ]
-    
-    edge_count = 0
-    threshold = 100  # Only count strong edges
-    
-    # Scan every pixel (except borders — we need 3x3 area around each pixel)
-    for y in range(1, height - 1):
-        for x in range(1, width - 1):
-            gx = 0  # Horizontal edge strength
-            gy = 0  # Vertical edge strength
-            
-            # Apply the 3x3 kernel around this pixel
-            for ky in range(-1, 2):      # -1, 0, 1
-                for kx in range(-1, 2):  # -1, 0, 1
-                    # Get the gray value of the neighbor pixel
-                    pixel_value = gray[(y + ky) * width + (x + kx)]
-                    
-                    # Multiply by the kernel weight
-                    gx += pixel_value * sobel_x[ky + 1][kx + 1]
-                    gy += pixel_value * sobel_y[ky + 1][kx + 1]
-            
-            # Combine horizontal and vertical edges
-            magnitude = math.sqrt(gx * gx + gy * gy)
-            
-            if magnitude > threshold:
-                edge_count += 1
-    
-    # Return edge density as a ratio (0.0 = no edges, 1.0 = all edges)
-    total_pixels = (width - 2) * (height - 2)
-    return edge_count / total_pixels if total_pixels > 0 else 0
+def _zone_edge_density(gray, w, h, grid=4):
+    zone_edges = [0] * (grid * grid)
+    zw, zh = w // grid, h // grid
+    for y in range(1, h - 1):
+        for x in range(1, w - 1):
+            gx = gray[y*w + (x+1)] - gray[y*w + (x-1)]
+            gy = gray[(y+1)*w + x] - gray[(y-1)*w + x]
+            if abs(gx) + abs(gy) > 60:
+                zone_edges[min(y // zh, grid-1) * grid + min(x // zw, grid-1)] += 1
+    return [e / (zw * zh) for e in zone_edges]
 
+def _gradient_orientation(gray, w, h, grid=3):
+    bins = [0] * (grid * grid * 8)
+    zw, zh = w // grid, h // grid
+    for y in range(1, h - 1):
+        for x in range(1, w - 1):
+            gx = gray[y*w + (x+1)] - gray[y*w + (x-1)]
+            gy = gray[(y+1)*w + x] - gray[(y-1)*w + x]
+            if gx == 0 and gy == 0: continue
+            direction = int((math.atan2(gy, gx) + math.pi) / (2 * math.pi) * 8) % 8
+            bins[(min(y // zh, grid-1) * grid + min(x // zw, grid-1)) * 8 + direction] += 1
+    total_bins = sum(bins)
+    return [b/total_bins if total_bins > 0 else 0 for b in bins]
 
-def _zone_edge_density(pixels, width, height, grid_size=3):
-    """
-    Calculates EDGE DENSITY per zone (e.g. 3x3 grid).
-    
-    A car has straight horizontal edges across the middle.
-    A bike has diagonal frame lines and circular wheels.
-    By splitting the image into 9 zones, we teach the AI the "shape/structure" 
-    of the object, not just its total color.
-    
-    Returns a list of `grid_size * grid_size` numbers (e.g. 9 numbers).
-    """
-    gray = [int(0.299*r + 0.587*g + 0.114*b) for r, g, b in pixels]
-    
-    sobel_x = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]
-    sobel_y = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]]
-    threshold = 100
-    
-    zone_edges = [0] * (grid_size * grid_size)
-    zone_w = width // grid_size
-    zone_h = height // grid_size
-    
-    for y in range(1, height - 1):
-        for x in range(1, width - 1):
-            gx, gy = 0, 0
-            for ky in range(-1, 2):
-                for kx in range(-1, 2):
-                    pixel_value = gray[(y + ky) * width + (x + kx)]
-                    gx += pixel_value * sobel_x[ky + 1][kx + 1]
-                    gy += pixel_value * sobel_y[ky + 1][kx + 1]
-            
-            if math.sqrt(gx*gx + gy*gy) > threshold:
-                # Find which zone this pixel belongs to
-                zx = min(x // zone_w, grid_size - 1)
-                zy = min(y // zone_h, grid_size - 1)
-                zone_index = zy * grid_size + zx
-                zone_edges[zone_index] += 1
-                
-    # Normalize
-    zone_area = zone_w * zone_h
-    return [edges / zone_area if zone_area > 0 else 0 for edges in zone_edges]
-
-
-def _dominant_color(pixels):
-    """
-    Finds the DOMINANT COLOR — the most common color in the image.
-    
-    We simplify colors by rounding them to the nearest 32.
-    Example: (137, 200, 45) → (128, 192, 32)
-    
-    Then we count which simplified color appears most often.
-    
-    Cars might have dominant gray/silver.
-    Forests might have dominant green.
-    """
-    # Count simplified color occurrences
-    color_counts = {}
-    
-    for r, g, b in pixels:
-        # Round to nearest 32 (simplifies 16 million colors to ~500)
-        simple_r = (r // 32) * 32
-        simple_g = (g // 32) * 32
-        simple_b = (b // 32) * 32
-        
-        key = (simple_r, simple_g, simple_b)
-        color_counts[key] = color_counts.get(key, 0) + 1
-    
-    # Find the most common color
-    dominant = max(color_counts, key=color_counts.get)
-    
-    # Normalize to 0.0-1.0 range
-    return [dominant[0] / 255.0, dominant[1] / 255.0, dominant[2] / 255.0]
-
-
-def _aspect_ratio(image_path):
-    """
-    Calculates ASPECT RATIO — width divided by height.
-    
-    A wide landscape photo has ratio > 1.0
-    A tall portrait photo has ratio < 1.0
-    A square photo has ratio = 1.0
-    
-    Cars are usually in landscape photos (wide).
-    People standing are usually in portrait photos (tall).
-    """
-    with Image.open(image_path) as image:
-        width, height = image.size
-
-    return width / height if height > 0 else 1.0
+def _texture_stats(gray):
+    mean = sum(gray) / len(gray)
+    variance = sum((p - mean)**2 for p in gray) / len(gray)
+    contrast = max(gray) - min(gray)
+    return [mean/255.0, min(1.0, variance/(255*255)), contrast/255.0]
