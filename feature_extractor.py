@@ -57,13 +57,16 @@ def extract_features(image_path):
     # Step 3: Extract different types of features
     color_hist = _color_histogram(pixels)        # 64 numbers (0.0 to 1.0)
     edge_density = _edge_density(pixels, width, height)  # 1 number (0.0 to 1.0)
+    zone_edges = _zone_edge_density(pixels, width, height) # 9 numbers (0.0 to 1.0)
     dominant_color = _dominant_color(pixels)      # 3 numbers (0.0 to 1.0)
     aspect_ratio = _aspect_ratio(image_path)      # 1 number (usually 0.5 to 2.0)
     
     # Step 4: Apply Weights!
-    # WHY WEIGHTS? If we don't weight them, a small change in Aspect Ratio
-    # might overpower a massive difference in Color.
-    # We want Color and Edges to be the most important things for the AI.
+    # We heavily weight Zone Edges so the AI cares about SHAPE STRUCTURE 
+    # (e.g. wheels vs windows) and not just color!
+    
+    # Weight zone edges heavily (x 2.5) to capture structural layout
+    weighted_zone_edges = [z * 2.5 for z in zone_edges]
     
     # Weight color heavily (x 2.0)
     weighted_color_hist = [c * 2.0 for c in color_hist]
@@ -71,15 +74,14 @@ def extract_features(image_path):
     # Weight dominant color very heavily (x 3.0) because cars/flowers are color-coded
     weighted_dominant = [d * 3.0 for d in dominant_color]
     
-    # Weight edges moderately (x 1.5) to separate smooth (flowers) from sharp (bikes)
-    weighted_edge = [edge_density * 1.5]
+    # Weight overall edges moderately (x 1.0) 
+    weighted_edge = [edge_density * 1.0]
     
-    # Keep aspect ratio weak (x 0.5) because a side-profile bike and a portrait flower 
-    # might accidentally have the same shape ratio.
+    # Keep aspect ratio weak (x 0.5) 
     weighted_aspect = [aspect_ratio * 0.5]
     
     # Step 5: Combine all weighted features into one list
-    features = weighted_color_hist + weighted_edge + weighted_dominant + weighted_aspect
+    features = weighted_color_hist + weighted_zone_edges + weighted_edge + weighted_dominant + weighted_aspect
     
     return features
 
@@ -181,6 +183,48 @@ def _edge_density(pixels, width, height):
     # Return edge density as a ratio (0.0 = no edges, 1.0 = all edges)
     total_pixels = (width - 2) * (height - 2)
     return edge_count / total_pixels if total_pixels > 0 else 0
+
+
+def _zone_edge_density(pixels, width, height, grid_size=3):
+    """
+    Calculates EDGE DENSITY per zone (e.g. 3x3 grid).
+    
+    A car has straight horizontal edges across the middle.
+    A bike has diagonal frame lines and circular wheels.
+    By splitting the image into 9 zones, we teach the AI the "shape/structure" 
+    of the object, not just its total color.
+    
+    Returns a list of `grid_size * grid_size` numbers (e.g. 9 numbers).
+    """
+    gray = [int(0.299*r + 0.587*g + 0.114*b) for r, g, b in pixels]
+    
+    sobel_x = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]
+    sobel_y = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]]
+    threshold = 100
+    
+    zone_edges = [0] * (grid_size * grid_size)
+    zone_w = width // grid_size
+    zone_h = height // grid_size
+    
+    for y in range(1, height - 1):
+        for x in range(1, width - 1):
+            gx, gy = 0, 0
+            for ky in range(-1, 2):
+                for kx in range(-1, 2):
+                    pixel_value = gray[(y + ky) * width + (x + kx)]
+                    gx += pixel_value * sobel_x[ky + 1][kx + 1]
+                    gy += pixel_value * sobel_y[ky + 1][kx + 1]
+            
+            if math.sqrt(gx*gx + gy*gy) > threshold:
+                # Find which zone this pixel belongs to
+                zx = min(x // zone_w, grid_size - 1)
+                zy = min(y // zone_h, grid_size - 1)
+                zone_index = zy * grid_size + zx
+                zone_edges[zone_index] += 1
+                
+    # Normalize
+    zone_area = zone_w * zone_h
+    return [edges / zone_area if zone_area > 0 else 0 for edges in zone_edges]
 
 
 def _dominant_color(pixels):
