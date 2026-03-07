@@ -133,29 +133,40 @@ class KNNClassifier:
         labels = [label for _, label in k_nearest]
         vote_counts = Counter(labels)
         
-        winner_label = vote_counts.most_common(1)[0][0]
-        winner_count = vote_counts.most_common(1)[0][1]
-        confidence = winner_count / len(k_nearest)
-        
         # Calculate scores for ALL categories
         all_categories = set(label for label, _ in self.training_data)
         all_scores = {}
         for cat in all_categories:
             count = vote_counts.get(cat, 0)
             all_scores[cat] = count / len(k_nearest)
+            
+        # MULTI-OBJECT DETECTION:
+        # Instead of picking 1 winner, pick ALL categories that got at least 20% (1 out of 5) votes.
+        # This handles images that have "a human AND a bike".
+        detected_categories = [cat for cat, score in sorted(all_scores.items(), key=lambda x: -x[1]) if score >= 0.2]
+        
+        if not detected_categories:
+            winner_label = vote_counts.most_common(1)[0][0]
+            detected_categories = [winner_label]
+            
+        # Combine labels (e.g., "human and bike")
+        combined_label = " and ".join(detected_categories)
+        primary_confidence = all_scores[detected_categories[0]]  # The confidence of the strongest match
         
         # Generate AI Reasoning
         reason = ""
-        if confidence == 1.0:
-            reason = f"All {self.k} of the closest matching images in my brain are '{winner_label}'s. The color palette, shape, and edge sharpness are an exact mathematical match for this category."
-        elif confidence > 0.5:
-            reason = f"The majority ({winner_count} out of {len(k_nearest)}) of photos with a similar colored fingerprint and edge density are '{winner_label}'s."
+        if len(detected_categories) > 1:
+            reason = f"I detected multiple objects! My brain found strong mathematical matches for both {combined_label} mixed together in this image's colors and edges."
+        elif primary_confidence == 1.0:
+            reason = f"All {self.k} of the closest matching images in my brain are '{detected_categories[0]}'s. The color palette, shape, and edge sharpness are an exact mathematical match for this category."
+        elif primary_confidence > 0.5:
+            reason = f"The majority ({vote_counts[detected_categories[0]]} out of {len(k_nearest)}) of photos with a similar colored fingerprint and edge density are '{detected_categories[0]}'s."
         else:
-            reason = f"This was a trickier one. While the colors resemble a few different things, the closest mathematical match overall falls into the '{winner_label}' category."
+            reason = f"This was a trickier one. While the colors resemble a few different things, the closest mathematical match overall falls into the '{detected_categories[0]}' category."
         
         return {
-            'label': winner_label,
-            'confidence': confidence,
+            'label': combined_label,
+            'confidence': primary_confidence,
             'reason': reason,
             'all_scores': all_scores,
             'k_nearest': [(dist, label) for dist, label in k_nearest]
