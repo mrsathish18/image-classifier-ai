@@ -79,9 +79,21 @@ def classify_image():
             # Step 2: Classify
             result = classifier.classify_with_details(features)
             
-            # Step 3: Format response
+            # Step 3: Format response (Handle Gender Detection)
+            final_label = result['label']
+            gender = None
+            
+            # Map specific categories to "Human" with gender sub-labels
+            if "man" in result['label'].lower() and "woman" not in result['label'].lower():
+                final_label = "Human"
+                gender = "Man"
+            elif "woman" in result['label'].lower():
+                final_label = "Human"
+                gender = "Woman"
+            
             response = {
-                'label': result['label'],
+                'label': final_label,
+                'gender': gender,
                 'confidence': round(result['confidence'] * 100, 1),
                 'reason': result.get('reason', 'Based on mathematical similarity to training data.'),
                 'image_url': url_for('static', filename=f'uploads/{filename}')
