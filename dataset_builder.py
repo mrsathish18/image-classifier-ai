@@ -24,11 +24,39 @@ def build_dataset():
         for file in files:
             filepath = os.path.join(cat_dir, file)
             try:
+                # 1. Original Image
                 features = extract_features(filepath)
-                # Save just the numbers to memory, saving MASSIVE RAM
                 dataset[cat].append([round(f, 4) for f in features])
-                total_images += 1
-                print(f"  [OK] Calculated {len(features)} features for: {cat}/{file}")
+                
+                # 2. DATA AUGMENTATION (Multiply what the AI "sees")
+                # We open the image and create virtual variations
+                from PIL import Image, ImageEnhance
+                with Image.open(filepath) as img:
+                    img = img.convert("RGB")
+                    
+                    # Variation A: Horizontal Flip (Mirror)
+                    flipped = img.transpose(Image.FLIP_LEFT_RIGHT)
+                    # We need a temp path or a modified extract_features that accepts Image objects
+                    # For simplicity, let's create a temp file
+                    temp_path = os.path.join(os.path.dirname(filepath), "_temp_aug.png")
+                    
+                    # Flip
+                    flipped.save(temp_path)
+                    dataset[cat].append([round(f, 4) for f in extract_features(temp_path)])
+                    
+                    # Variation B: Brighter
+                    ImageEnhance.Brightness(img).enhance(1.2).save(temp_path)
+                    dataset[cat].append([round(f, 4) for f in extract_features(temp_path)])
+                    
+                    # Variation C: Darker
+                    ImageEnhance.Brightness(img).enhance(0.8).save(temp_path)
+                    dataset[cat].append([round(f, 4) for f in extract_features(temp_path)])
+                    
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+
+                total_images += 4 # 1 original + 3 variations
+                print(f"  [OK] Successfully learned 4 variations for: {cat}/{file}")
             except Exception as e:
                 print(f"  [ERROR] Processing {file}: {e}")
                 
